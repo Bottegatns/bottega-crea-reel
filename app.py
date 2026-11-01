@@ -1,5 +1,6 @@
 from pathlib import Path
-import tempfile, os
+import tempfile, os, base64, json
+import streamlit.components.v1 as components
 import streamlit as st
 from editor import render
 st.set_page_config(page_title='Tutta n’ata storia · Crea Reel',page_icon='🎬',layout='centered')
@@ -57,4 +58,32 @@ if st.button('🎬 CREA REEL',type='primary',use_container_width=True):
         except Exception as exc:st.error(f'Impossibile completare il montaggio: {exc}')
 if 'mp4' in st.session_state:
     st.video(st.session_state.mp4)
-    st.download_button('⬇️ SCARICA REEL MP4',st.session_state.mp4,'Tutta_n_ata_storia_Reel.mp4',mime='video/mp4',use_container_width=True)
+    st.subheader('📲 Condividi su Instagram (Android)')
+    st.caption('Dal telefono prova a condividere il file con Instagram. Se Instagram non compare o non apre le Storie, scarica il video e selezionalo dalla galleria in Instagram. La musica si aggiunge nell’editor di Instagram.')
+    # Il browser deve supportare Web Share API con file; i browser incorporati
+    # o gli iframe possono impedirne l’uso. Per questo rimane il download.
+    payload = base64.b64encode(st.session_state.mp4).decode('ascii')
+    filename = 'Tutta_n_ata_storia_Reel.mp4'
+    share_html = f"""<!doctype html><html lang='it'><head><meta name='viewport' content='width=device-width,initial-scale=1'>
+<style>body{{margin:0;font-family:system-ui,sans-serif}}button{{width:100%;padding:15px 12px;border:0;border-radius:12px;background:#218454;color:white;font-weight:750;font-size:16px;cursor:pointer}}#status{{font-size:13px;color:#555;margin-top:9px;line-height:1.4}}</style></head>
+<body><button id='share'>📲 CONDIVIDI VIDEO (ANDROID)</button><div id='status' role='status'></div>
+<script>
+const data={json.dumps(payload)};
+const filename={json.dumps(filename)};
+const status=document.getElementById('status');
+document.getElementById('share').addEventListener('click',async()=>{{
+  try {{
+    if(!navigator.share) throw new Error('La condivisione diretta non è disponibile in questo browser.');
+    const raw=atob(data); const bytes=new Uint8Array(raw.length);
+    for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i);
+    const file=new File([bytes],filename,{{type:'video/mp4'}});
+    if(navigator.canShare && !navigator.canShare({{files:[file]}})) throw new Error('Il browser non permette di condividere questo video.');
+    await navigator.share({{files:[file]}});
+    status.textContent='Se hai scelto Instagram, completa la Storia nell’app e aggiungi la musica lì.';
+  }} catch(err) {{
+    status.textContent=err.name==='AbortError'?'Condivisione annullata.':(err.message||'Condivisione non disponibile.')+' Usa il pulsante Scarica Reel qui sotto.';
+  }}
+}});
+</script></body></html>"""
+    components.html(share_html, height=100, scrolling=False)
+    st.download_button('⬇️ SCARICA REEL MP4',st.session_state.mp4,filename,mime='video/mp4',use_container_width=True)
